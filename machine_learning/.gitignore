@@ -1,0 +1,27 @@
+# Ignore virtual environments
+.venv/
+venv/
+
+# Ignore Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore common editor/IDE files
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+
+# Ignore log files
+*.log
+
+# Ignore local configuration files (example)
+config_local.py
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore compiled C extensions
+*.so
