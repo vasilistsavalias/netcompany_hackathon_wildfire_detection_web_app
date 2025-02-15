@@ -22,16 +22,15 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://user:password@host/data
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Suppress a warning
 db = SQLAlchemy(app)
 
-# --- File Storage Configuration ---
+# --- File Storage Configuration ---c
 UPLOAD_FOLDER = 'uploads'
 PROCESSED_FOLDER = 'processed_images'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Create the directories if they don't exist
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
 # --- Model Paths (Adjust these if your paths are different) ---
-YOLO_MODEL_PATH = "models/yolo/best_yolov8_model.pt"
-CNN_MODEL_PATH = "models/cnn/best_model.keras"
-
+YOLO_MODEL_PATH = "trained_neural_networks_yolov8_seqcnn\models\yolo\best_yolov8_model.pt"
+CNN_MODEL_PATH = "trained_neural_networks_yolov8_seqcnn\models\cnn\best_model.keras"
 # --- Image Sizes ---
 YOLO_INPUT_SIZE = (352, 352)
 CNN_INPUT_SIZE = (224, 224)
