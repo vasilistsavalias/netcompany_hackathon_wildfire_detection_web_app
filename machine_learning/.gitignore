@@ -25,3 +25,7 @@ config_local.py
 
 # Ignore compiled C extensions
 *.so
+
+# Ignore Uploads and processed images
+uploads/
+processed_images/
