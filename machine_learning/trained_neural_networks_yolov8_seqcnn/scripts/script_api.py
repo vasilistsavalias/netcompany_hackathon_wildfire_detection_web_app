@@ -13,24 +13,26 @@ from flask import Flask, request, jsonify, send_file
 from PIL import Image, ImageDraw
 from ultralytics import YOLO
 from flask_sqlalchemy import SQLAlchemy
-from tensorflow.python.keras.models import load_model
+import tensorflow as tf  # Use the top-level TensorFlow import
 
 app = Flask(__name__)
 
-# --- Database Configuration ---
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://user:password@host/database'  # Replace with your database credentials
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Suppress a warning
+# --- Database Configuration (USE ENVIRONMENT VARIABLES!) ---
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')  # Get from environment variable
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# --- File Storage Configuration ---c
+# --- File Storage Configuration ---
 UPLOAD_FOLDER = 'uploads'
 PROCESSED_FOLDER = 'processed_images'
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Create the directories if they don't exist
-os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+# Assuming script is run from machine_learning, create uploads and processed_images there
+os.makedirs(os.path.join('..', UPLOAD_FOLDER), exist_ok=True)
+os.makedirs(os.path.join('..', PROCESSED_FOLDER), exist_ok=True)
 
-# --- Model Paths (Adjust these if your paths are different) ---
-YOLO_MODEL_PATH = "trained_neural_networks_yolov8_seqcnn\models\yolo\best_yolov8_model.pt"
-CNN_MODEL_PATH = "trained_neural_networks_yolov8_seqcnn\models\cnn\best_model.keras"
+# --- Model Paths (CORRECTED RELATIVE PATHS) ---
+YOLO_MODEL_PATH = "../models/yolo/best_yolov8_model.pt"  # Relative to script location
+CNN_MODEL_PATH = "../models/cnn/best_model.keras"      # Relative to script location
+
 # --- Image Sizes ---
 YOLO_INPUT_SIZE = (352, 352)
 CNN_INPUT_SIZE = (224, 224)
@@ -54,7 +56,6 @@ class ImageResult(db.Model):
         return f'<ImageResult {self.id}>'
 
 # --- Model Loading ---
-# (Same as before - load_yolo_model() and load_cnn_model())
 def load_yolo_model():
     """Loads the YOLOv8 model."""
     try:
@@ -68,7 +69,7 @@ def load_yolo_model():
 def load_cnn_model():
     """Loads the CNN model."""
     try:
-        model = load_model(CNN_MODEL_PATH)
+        model = tf.keras.models.load_model(CNN_MODEL_PATH) # Corrected import
         return model
     except Exception as e:
         print(f"Error loading CNN model: {e}")
@@ -78,7 +79,6 @@ yolo_model = load_yolo_model()
 cnn_model = load_cnn_model()
 
 # --- Preprocessing Functions ---
-# (Same as before - preprocess_image_for_yolo() and preprocess_image_for_cnn())
 def preprocess_image_for_yolo(image_bytes):
     """Preprocesses an image for YOLOv8."""
     try:
@@ -106,7 +106,6 @@ def preprocess_image_for_cnn(image_bytes):
         return None
 
 # --- Inference Functions ---
-# (Same as before - predict_with_yolo() and predict_with_cnn())
 def predict_with_yolo(image_array):
     """Performs inference with YOLOv8."""
     if yolo_model is None:
@@ -133,18 +132,10 @@ def predict_with_cnn(image_array):
 # --- Utility Functions ---
 
 def save_image(image_bytes, folder, filename):
-    """Saves an image to the specified folder.
-
-    Args:
-        image_bytes (bytes): The image data as bytes.
-        folder (str): The directory to save the image in.
-        filename (str): The filename to use.
-
-    Returns:
-        str: The full path to the saved image.
-    """
+    """Saves an image to the specified folder."""
     image = Image.open(io.BytesIO(image_bytes))
-    image_path = os.path.join(folder, filename)
+    # Use relative path for saving images
+    image_path = os.path.join('..', folder, filename)
     image.save(image_path)
     return image_path
 
@@ -237,12 +228,13 @@ def predict():
     include_image = request.args.get('include_image', 'false').lower() == 'true'
     if include_image:
         if processed_image_path:  # If we have a processed image, use it
-            with open(processed_image_path, "rb") as img_file:
+            with open(os.path.join('..', processed_image_path), "rb") as img_file: # Correct path
                 img_base64 = base64.b64encode(img_file.read()).decode('utf-8')
                 response_data['image_with_boxes'] = img_base64
         else:  # Otherwise, use the original image
-            img_base64 = base64.b64encode(image_bytes).decode('utf-8')
-            response_data['image_with_boxes'] = img_base64
+            with open(os.path.join('..', image_path), 'rb') as img_file: # Correct path
+                img_base64 = base64.b64encode(img_file.read()).decode('utf-8')
+                response_data['image_with_boxes'] = img_base64
 
     return jsonify(response_data), 200
 
@@ -268,11 +260,11 @@ def get_result(image_id):
     # Optional: Include image paths or base64 encoded images
     include_image = request.args.get('include_image', 'false').lower() == 'true'
     if include_image:
-        if result.processed_image_path and os.path.exists(result.processed_image_path):
-            with open(result.processed_image_path, "rb") as img_file:
+        if result.processed_image_path and os.path.exists(os.path.join('..', result.processed_image_path)):
+            with open(os.path.join('..', result.processed_image_path), "rb") as img_file:
                 response_data['processed_image'] = base64.b64encode(img_file.read()).decode('utf-8')
-        elif os.path.exists(result.image_path): #if there is no processed image, we will use the original
-            with open(result.image_path, "rb") as img_file:
+        elif os.path.exists(os.path.join('..', result.image_path)): #if there is no processed image, we will use the original
+            with open(os.path.join('..', result.image_path), "rb") as img_file:
                 response_data['original_image'] = base64.b64encode(img_file.read()).decode('utf-8')
         #else we return nothing
 
@@ -286,10 +278,10 @@ def get_image(image_id):
     # Convert the JSON string back to a Python object
     yolo_detections = json.loads(result.yolo_detections)
 
-    if result.processed_image_path and os.path.exists(result.processed_image_path):
-        return send_file(result.processed_image_path, mimetype='image/jpeg')
-    elif os.path.exists(result.image_path):
-        return send_file(result.image_path, mimetype='image/jpeg')
+    if result.processed_image_path and os.path.exists(os.path.join('..', result.processed_image_path)):
+        return send_file(os.path.join('..', result.processed_image_path), mimetype='image/jpeg')
+    elif os.path.exists(os.path.join('..', result.image_path)):
+        return send_file(os.path.join('..', result.image_path), mimetype='image/jpeg')
     else:
         return jsonify({'error':"image not found"}), 404
 
