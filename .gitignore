@@ -1,0 +1,35 @@
+# Ignore virtual environments1
+.venv/
+venv/
+
+# Ignore Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore common editor/IDE files
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+
+# Ignore log files
+*.log
+
+# Ignore local configuration files (example)
+config_local.py
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore compiled C extensions
+*.so
+
+# Ignore Uploads and processed images
+uploads/
+processed_images/
+
+
+# Ignore model weight files in any temporary folder inside machine_learning/models/cnn/
+machine_learning/models/cnn/tmp*/model.weights.h5

@@ -1,5 +1,4 @@
-import React from "react";
-import spinnerIcon from "../assets/spinner.svg";
+
 
 function Spinner() {
   return (
