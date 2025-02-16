@@ -6,24 +6,75 @@ function Uploader() {
   const fileInputRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
     if (file) {
-      setSelectedFile(file.name);
+      setSelectedFile(file);
     }
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!selectedFile) return;
 
     setLoading(true);
+    setUploadError(null);
 
-    setTimeout(() => {
-      setLoading(false);
+    const formData = new FormData();
+    formData.append("image", selectedFile);
+
+    try {
+      const response = await fetch("http://127.0.0.1:5000/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+
+        let errorMessage = `HTTP error! Status: ${response.status}, Message: ${
+          errorData.error || "Unknown error"
+        }`;
+
+        if (
+          (response.status === 500 &&
+            errorData.error.includes("Error communicating with AI model")) ||
+          errorData.error.includes("Error processing AI model response")
+        ) {
+          errorMessage =
+            "Failed to communicate with the AI model. Please ensure the AI model API is running correctly.";
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      console.log("Upload successful:", data);
       alert("File uploaded successfully!");
-    }, 3000);
+
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = null;
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+
+      if (error.message.includes("Failed to fetch")) {
+        setUploadError(
+          "Failed to connect to the server.  Please ensure the backend and AI model API are running."
+        );
+      } else if (error.message.includes("AI Model failed")) {
+        setUploadError(
+          "Failed to communicate with the AI model. Please ensure the AI model API is running correctly."
+        );
+      } else {
+        setUploadError(error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -57,16 +108,20 @@ function Uploader() {
             >
               <img className="w-10 h-10" src={uploadIcon} alt="Upload Icon" />
               <span className="mt-2 text-sm">
-                {selectedFile ? `Uploaded: ${selectedFile}` : "Click to Upload"}
+                {selectedFile
+                  ? `Uploaded: ${selectedFile.name}`
+                  : "Click to Upload"}
               </span>
             </label>
           </>
         )}
 
+        {uploadError && <div className="text-red-500">{uploadError}</div>}
+
         <button
           className="z-10 w-full cursor-pointer bg-black p-3 text-white hover:bg-white hover:text-black rounded-lg transition duration-200 ease-in-out"
           type="submit"
-          disabled={loading}
+          disabled={loading || !selectedFile} // Disable if loading or no file selected
         >
           {loading ? "Searching for possible fire..." : "Examine"}
         </button>

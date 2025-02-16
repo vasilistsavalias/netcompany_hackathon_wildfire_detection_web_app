@@ -7,7 +7,7 @@ import os
 # Initialize Flask app
 app = Flask(__name__)
 app.config.from_object(Config)
-CORS(app)  # Enable CORS
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:5173"}})
 
 # Initialize database
 db.init_app(app)
