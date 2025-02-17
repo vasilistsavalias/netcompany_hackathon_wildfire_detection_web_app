@@ -1,7 +1,11 @@
 @import "tailwindcss";
 
-form {
-  background-color: rgba(255, 255, 255, 0.7);
+.form {
+  background-color: transparent;
+}
+
+.container {
+  background-color: rgba(255, 255, 255, 0.8);
   border-radius: 12px;
 }
 
@@ -21,6 +25,7 @@ button:hover {
   box-sizing: border-box;
   animation: rotation 2s linear infinite;
 }
+
 .loader::after {
   content: "";
   box-sizing: border-box;
@@ -43,14 +48,17 @@ button:hover {
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
 }
+
 @keyframes rotationBack {
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(-360deg);
   }
