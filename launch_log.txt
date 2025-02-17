@@ -1,10 +1,2 @@
-2025-02-17 04:51:36 - INFO - Starting containerized Wildfire Detection Web App...
-2025-02-17 04:51:36 - INFO - Building backend Docker image from C:\Users\vtsav\Documents\1.programming_mine\GithubRepos\netcompany_hackathon_wildfire_detection_web_app\machine_learning.
-2025-02-17 04:51:38 - INFO - Backend Docker image built successfully.
-2025-02-17 04:51:38 - INFO - Building frontend Docker image from C:\Users\vtsav\Documents\1.programming_mine\GithubRepos\netcompany_hackathon_wildfire_detection_web_app\front_end.
-2025-02-17 04:51:39 - INFO - Frontend Docker image built successfully.
-2025-02-17 04:51:39 - INFO - Starting backend container.
-2025-02-17 04:51:41 - INFO - Backend container started.
-2025-02-17 04:52:12 - ERROR - Error: Could not reach backend API. Exception: The underlying connection was closed: The connection was closed unexpectedly.
-2025-02-17 04:52:12 - INFO - Starting frontend container.
-2025-02-17 04:52:14 - INFO - Frontend container started.
+2025-02-17 20:43:52 - INFO - Initializing Backend...
+2025-02-17 20:43:52 - INFO - Backend server started (PID: 14564).
