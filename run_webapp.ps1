@@ -67,7 +67,7 @@ Clear-Content -Path $logFile -ErrorAction SilentlyContinue
 
 # --- Temporarily Show Console, Display Message, and Wait ---
 Write-Host "Waiting 30 seconds for the backend server to initialize..." -ForegroundColor Yellow
-Start-Sleep -Seconds 30
+Start-Sleep -Seconds 45
 
 # --- Start Backend and Frontend ---
 Write-Log "Starting Wildfire Detection Web App..."
