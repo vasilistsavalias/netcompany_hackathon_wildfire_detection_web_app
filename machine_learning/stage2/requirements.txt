@@ -56,14 +56,6 @@ seaborn==0.13.2
 six==1.17.0
 SQLAlchemy==2.0.38
 sympy==1.13.1
-tensorboard==2.18.0
-tensorboard-data-server==0.7.2
-tensorflow==2.18.0
-tensorflow-io-gcs-filesystem==0.31.0
-termcolor==2.5.0
-torch==2.6.0
-torchaudio==2.6.0
-torchvision==0.21.0
 tqdm==4.67.1
 typing_extensions==4.12.2
 tzdata==2025.1
@@ -76,3 +68,4 @@ wrapt==1.17.2
 flask-cors==3.0.10
 psycopg2-binary==2.9.8
 gunicorn==20.1.0  
+

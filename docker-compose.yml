@@ -1,0 +1,86 @@
+
+
+services:
+  frontend:
+    build:
+      context: ./front_end
+      dockerfile: frontend.dockerfile
+    restart: always
+    ports:
+      - "80:80"
+    configs:
+      - source: nginx_config
+        target: /etc/nginx/conf.d/default.conf
+    networks:
+      - app-network
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./machine_learning
+      dockerfile: backend.dockerfile
+    restart: always
+    secrets:
+      - db_password
+      - flask_secret_key  
+    configs:
+      - source: backend_config
+        target: /app/config.yml
+    environment:
+      FLASK_ENV: production
+      DATABASE_URL: postgresql://wildfire_user:1234@db:5432/wildfire_db 
+      SECRET_KEY: 3aed0facd10b74d55d8d02987062a1f50c9f3691a1a77b3b 
+    networks:
+      - app-network
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 5s
+      retries: 5
+      start_period: 15s
+      timeout: 5s
+
+  db:
+    build:
+      context: ./machine_learning
+      dockerfile: database.dockerfile 
+    image: postgres:alpine 
+    restart: always
+    secrets:
+      - db_password
+    environment:
+      POSTGRES_USER: wildfire_user 
+      POSTGRES_DB: wildfire_db 
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wildfire_user -d wildfire_db"] 
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+secrets:
+  db_password:
+    file: ./netcompany_hackathon_wildfire_detection_web_app/db_password.txt
+  flask_secret_key:  
+    file: ./netcompany_hackathon_wildfire_detection_web_app/flask_secret_key.txt  
+
+configs:
+  nginx_config:
+    file: ./nginx.conf
+  backend_config:
+    file: ./backend-config.yaml
+
+volumes:
+  postgres-data:
+
+networks:
+  app-network:
+    driver: bridge

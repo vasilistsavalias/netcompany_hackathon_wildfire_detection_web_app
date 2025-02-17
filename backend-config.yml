@@ -1,0 +1,3 @@
+# backend-config.yaml
+log_level: INFO
+cache_timeout: 300
