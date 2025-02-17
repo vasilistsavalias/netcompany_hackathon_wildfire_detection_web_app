@@ -2,81 +2,53 @@
 # launch_app.ps1
 # ==============================
 
-# --- Path Resolution Function ---
+[CmdletBinding()]
+param()
+
+# --- Function: Get-ScriptDirectory ---
 function Get-ScriptDirectory {
     if ($PSScriptRoot) {
-        # Running as PS1
         return $PSScriptRoot
     }
-    
-    # Running as EXE
     if ($MyInvocation.MyCommand.Path) {
         return Split-Path $MyInvocation.MyCommand.Path -Parent
     }
-    
-    # Fallback to current directory
     return (Get-Location).Path
 }
 
-# --- Logging Function ---
-function Write-Log {
-    param(
-        [string]$Message,
-        [string]$Level = "INFO"
-    )
-    if ($logFile) {
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        $logEntry = "$timestamp - $Level - $Message"
-        Add-Content -Path $logFile -Value $logEntry -ErrorAction SilentlyContinue
-    }
-}
-
 # --- Determine Project Root using Marker File ---
-# Use the script's directory as the starting point.
 $initialLocation = Get-ScriptDirectory
-Write-Host "Initial Debug:"
-Write-Host "  Script Directory: $initialLocation"
-
-# Define the marker file name.
+Write-Host "Initializing Application..." -ForegroundColor Cyan
 $markerFile = "project_root_marker.txt"
-
-# Start at the current directory and go upward until the marker is found.
 $projectRoot = $initialLocation
 while ($projectRoot -and -not (Test-Path (Join-Path $projectRoot $markerFile))) {
     $parent = Split-Path $projectRoot -Parent
-    if ($parent -eq $projectRoot) { break }  # Reached the drive root.
+    if ($parent -eq $projectRoot) { break }
     $projectRoot = $parent
 }
-
 if (-not (Test-Path (Join-Path $projectRoot $markerFile))) {
-    Write-Host "ERROR: Could not find project root marker file. Please ensure '$markerFile' exists in the project root directory." -ForegroundColor Red
-    pause
+    Write-Host "ERROR: Project root marker '$markerFile' not found. Ensure it exists in the project root." -ForegroundColor Red
     exit 1
 }
-
-Write-Host "Project root detected: $projectRoot"
+Write-Host "Project root detected at:" -ForegroundColor Green
+Write-Host "    $projectRoot" -ForegroundColor Green
 
 # --- Configuration ---
 $backendDir = Join-Path $projectRoot "machine_learning"
 $frontendDir = Join-Path $projectRoot "front_end"
-$logFile = Join-Path $projectRoot "launch_log.txt"
 
-# Validate critical directories
 if (-not (Test-Path $backendDir)) {
     Write-Host "ERROR: Backend directory not found at: $backendDir" -ForegroundColor Red
-    pause
     exit 1
 }
-
 if (-not (Test-Path $frontendDir)) {
     Write-Host "ERROR: Frontend directory not found at: $frontendDir" -ForegroundColor Red
-    pause
     exit 1
 }
 
-# --- Database and URL Configuration ---
+# --- Database and URL Settings ---
 $dbUser = "wildfire_user"
-$dbPassword = "1234"  # !!! CHANGE THIS !!! Store securely!
+$dbPassword = "1234"  # !!! CHANGE THIS !!! in production, store securely!
 $dbHost = "localhost"
 $dbPort = "5432"
 $dbName = "wildfire_db"
@@ -84,93 +56,127 @@ $databaseUrl = "postgresql://${dbUser}:${dbPassword}@${dbHost}:${dbPort}/${dbNam
 $frontendUrl = "http://localhost:5173"
 $backendUrl = "http://localhost:8080"
 
-# --- Start-Backend and Start-Frontend Functions ---
-function Start-Backend {
-    Write-Log "Initializing Backend..."
-    try {
-        $activateScript = Join-Path $backendDir ".venv\Scripts\activate.ps1"
-        if (Test-Path $activateScript) {
-            Write-Log "Attempting to activate: '$activateScript'"
-            & $activateScript
-        } else {
-            Write-Host "WARNING: Virtual environment not found at: $activateScript" -ForegroundColor Yellow
-            Write-Host "Attempting to continue without virtual environment..." -ForegroundColor Yellow
+# --- Install Backend Requirements ---
+function Install-BackendRequirements {
+    $requirementsFile = Join-Path $backendDir "requirements.txt"
+    if (Test-Path $requirementsFile) {
+        Write-Host "Installing backend requirements..." -ForegroundColor Cyan
+        try {
+            & python -m pip install -r $requirementsFile
+            Write-Host "Backend requirements installed successfully." -ForegroundColor Green
+        } catch {
+            Write-Host "ERROR: Failed to install backend requirements." -ForegroundColor Red
+            exit 1
         }
-    } catch {
-        Write-Log "Error activating virtual environment: $($_.Exception.Message)" -Level "ERROR"
+    } else {
+        Write-Host "WARNING: requirements.txt not found in $backendDir" -ForegroundColor Yellow
     }
-    
+}
+Install-BackendRequirements
+
+# --- Start Backend ---
+function Start-Backend {
+    Write-Host "Starting Backend..." -ForegroundColor Cyan
+    $activateScript = Join-Path $backendDir ".venv\Scripts\activate.ps1"
+    if (Test-Path $activateScript) {
+        & $activateScript
+    } else {
+        Write-Host "Note: Virtual environment not found. Continuing without activation." -ForegroundColor Yellow
+    }
     $env:DATABASE_URL = $databaseUrl
-    if (Test-Path (Join-Path $backendDir "run.py")) {
+    $runPy = Join-Path $backendDir "run.py"
+    if (Test-Path $runPy) {
         $backendProcess = Start-Process python -ArgumentList "run.py" -NoNewWindow -PassThru -WorkingDirectory $backendDir
-        Write-Log "Backend started (PID: $($backendProcess.Id))."
         return $backendProcess.Id
     } else {
-        Write-Host "ERROR: Backend run.py not found in: $backendDir" -ForegroundColor Red
-        pause
+        Write-Host "ERROR: run.py not found in backend directory." -ForegroundColor Red
         exit 1
     }
 }
 
+# --- Start Frontend ---
 function Start-Frontend {
-    Write-Log "Initializing Frontend..."
-    if (-not (Test-Path (Join-Path $frontendDir "package.json"))) {
-        Write-Host "ERROR: package.json not found in: $frontendDir" -ForegroundColor Red
-        pause
+    Write-Host "Starting Frontend..." -ForegroundColor Cyan
+    $packageJson = Join-Path $frontendDir "package.json"
+    if (-not (Test-Path $packageJson)) {
+        Write-Host "ERROR: package.json not found in frontend directory." -ForegroundColor Red
         exit 1
     }
-    
-    if (-not (Test-Path (Join-Path $frontendDir "node_modules"))) {
-        Write-Host "Installing node modules..." -ForegroundColor Yellow
+    $nodeModules = Join-Path $frontendDir "node_modules"
+    if (-not (Test-Path $nodeModules)) {
+        Write-Host "Installing node modules..." -ForegroundColor Cyan
         try {
             Set-Location $frontendDir
             npm install
             Set-Location $projectRoot
         } catch {
-            Write-Log "Error running npm install: $($_.Exception.Message)" -Level "ERROR"
-            pause
+            Write-Host "ERROR: npm install failed." -ForegroundColor Red
             exit 1
         }
     }
-    
     $frontendProcess = Start-Process npm -ArgumentList "run dev" -NoNewWindow -PassThru -WorkingDirectory $frontendDir
-    Write-Log "Frontend started (PID: $($frontendProcess.Id))."
     return $frontendProcess.Id
 }
 
-# --- Main Script Execution ---
-# Clear previous log entries.
-Clear-Content -Path $logFile -ErrorAction SilentlyContinue
-
-Write-Host "`n-----------------------------------------------------" -ForegroundColor DarkGreen
-Write-Host "  Starting Wildfire Detection Web Application..." -ForegroundColor Green
-Write-Host "-----------------------------------------------------`n" -ForegroundColor DarkGreen
-
-$backendPID = Start-Backend
-
-Write-Host "`nBackend Initializing..." -ForegroundColor Yellow
-Write-Host "Please wait..." -ForegroundColor Gray
-
-# Wait for 30 seconds (or adjust as needed) for the backend to fully start.
-$waitSeconds = 30
-for ($i = $waitSeconds; $i -gt 0; $i--) {
-    Write-Host "Waiting... ($i seconds)" -NoNewline -ForegroundColor DarkGray
-    Start-Sleep -Seconds 1
-    Write-Host "`r" -NoNewline
+# --- Wait for Backend with Countdown ---
+function Wait-ForBackend {
+    param(
+        [string]$backendUrl = "http://localhost:8080",
+        [int]$timeoutSeconds = 60
+    )
+    $startTime = Get-Date
+    $endTime = $startTime.AddSeconds($timeoutSeconds)
+    $backendReady = $false
+    while ((Get-Date) -lt $endTime) {
+        try {
+            $response = Invoke-WebRequest -Uri $backendUrl -UseBasicParsing -TimeoutSec 5
+            if ($response.StatusCode -eq 200) {
+                $backendReady = $true
+                break
+            }
+        } catch {
+            # Backend not yet ready
+        }
+        $remaining = [math]::Ceiling(($endTime - (Get-Date)).TotalSeconds)
+        $elapsed = $timeoutSeconds - $remaining
+        $percent = [math]::Round(($elapsed / $timeoutSeconds) * 100)
+        Write-Progress -Activity "Initializing Backend" `
+                       -Status "Please wait... $remaining seconds remaining" `
+                       -PercentComplete $percent
+        Start-Sleep -Seconds 1
+    }
+    Write-Progress -Activity "Initializing Backend" -Completed
+    return $backendReady
 }
 
-Write-Host "`nInitializing Frontend..." -ForegroundColor Yellow
+# --- Main Execution ---
+
+Write-Host "`n=====================================================" -ForegroundColor DarkGreen
+Write-Host "        Starting Wildfire Detection Application" -ForegroundColor Green
+Write-Host "=====================================================" -ForegroundColor DarkGreen
+
+# Launch Backend
+$backendPID = Start-Backend
+Write-Host "`nBackend is launching. Please wait..." -ForegroundColor Yellow
+$backendReady = Wait-ForBackend -backendUrl $backendUrl -timeoutSeconds 100
+if (-not $backendReady) {
+    Write-Host "WARNING: Backend did not become fully ready within the timeout period." -ForegroundColor Red
+} else {
+    Write-Host "Backend is ready!" -ForegroundColor Green
+}
+
+# Launch Frontend
+Write-Host "`nLaunching Frontend..." -ForegroundColor Yellow
 $frontendPID = Start-Frontend
 
-Write-Host "`n-----------------------------------------------------" -ForegroundColor DarkCyan
-Write-Host "  🎉  Application Ready!  🎉" -ForegroundColor Cyan
-Write-Host "  Open your browser and go to:" -ForegroundColor White
-Write-Host "  ==>  $frontendUrl  <==" -ForegroundColor Yellow -BackgroundColor DarkBlue
-Write-Host "-----------------------------------------------------`n" -ForegroundColor DarkCyan
-
+Write-Host "`n=====================================================" -ForegroundColor DarkCyan
+Write-Host "        🎉  Application Ready!  🎉" -ForegroundColor Cyan
+Write-Host "        Open your browser and go to:" -ForegroundColor White
+Write-Host "            ==>  $frontendUrl  <==" -ForegroundColor Yellow
+Write-Host "=====================================================" -ForegroundColor DarkCyan
 Write-Host "Press CTRL+C to exit." -ForegroundColor Cyan
 
-# Keep the script running indefinitely.
+# Keep the script running
 while ($true) {
     Start-Sleep -Seconds 10
 }
