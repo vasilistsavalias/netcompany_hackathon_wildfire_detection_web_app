@@ -1,29 +1,53 @@
+# app/api.py
 from flask import Blueprint, request, jsonify, send_file, current_app
 import time
 import base64
-#from app import db # No longer needed
-#from app.models import ImageResult # No longer needed
-from app.utils import save_image, draw_boxes_on_image
-from models.yolo import predict_with_yolo, YOLO_INPUT_SIZE, load_yolo_model
-from models.cnn import predict_with_cnn, CNN_INPUT_SIZE, load_cnn_model
-from preprocessing import preprocess_image_for_yolo, preprocess_image_for_cnn
-from PIL import Image
 import io
 import os
 import uuid
-from config import Config
 import logging
 import json
-from app.db import get_db_connection, close_db_connection
 from datetime import datetime
+
+from PIL import Image, ImageDraw
+from config import Config  # Assuming you have a Config class
+from app.db import get_db_connection, close_db_connection  # Import from db.py
+from models.yolo import predict_with_yolo, load_yolo_model
+from models.cnn import predict_with_cnn, load_cnn_model, preprocess_image_for_cnn
+from preprocessing import preprocess_image_for_yolo
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 bp = Blueprint('api', __name__)
 
+# --- Helper Functions (Defined *within* api.py) ---
+def save_image(image_bytes, upload_folder, filename):
+    """Saves an image to the specified folder and sets correct permissions."""
+
+    if not os.path.exists(upload_folder):
+        os.makedirs(upload_folder, exist_ok=True)  # Ensure directory exists
+
+    image_path = os.path.join(upload_folder, filename)
+
+    try:
+        with open(image_path, 'wb') as f:  # Open in binary write mode
+            f.write(image_bytes)
+
+        # Set permissions AFTER saving the file (THIS IS THE KEY FIX)
+        os.chmod(image_path, 0o644)  # Set permissions to rw-r--r-- (644 in octal)
+
+        return image_path
+
+    except Exception as e:
+        print(f"Error in save_image: {e}")  # More specific error logging
+        raise  # Re-raise the exception to be caught in the calling function
+
+# --- Routes ---
+
 # Load models globally, but handle potential failures
-yolo_model = load_yolo_model()
+yolo_model = load_yolo_model()  # Ensure these functions exist and handle loading
 cnn_model = load_cnn_model()
 
 @bp.route('/predict', methods=['POST'])
@@ -51,6 +75,7 @@ def predict():
         current_app.logger.info(f"Image saved to: {image_path}")
     except Exception as e:
         current_app.logger.error(f"Error saving image: {e}")
+        print(image_path)
         return jsonify({'error': 'Failed to save image'}), 500
 
 
@@ -60,11 +85,11 @@ def predict():
 
     if model_type == 'cnn':
         # CNN Prediction
-        cnn_image = preprocess_image_for_cnn(image_bytes)
-        if cnn_image is None:
+        input_tensor = preprocess_image_for_cnn(image_bytes) # preprocess here
+        if input_tensor is None:
             return jsonify({'error': 'Failed to preprocess image for CNN'}), 500
         try:
-            cnn_probability = predict_with_cnn(cnn_image)
+            cnn_probability = predict_with_cnn(input_tensor) # Pass the tensor
         except Exception as e:
             current_app.logger.error(f"Error during CNN prediction: {str(e)}")
             return jsonify({'error': 'Error during CNN prediction'}), 500
@@ -87,7 +112,41 @@ def predict():
 
         processed_image_path = None
         if yolo_detections:
-            processed_image_bytes = draw_boxes_on_image(image_bytes, yolo_detections)
+            # Inline box drawing (previously in draw_boxes_on_image function)
+            try:
+                # Open the image from bytes
+                image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+                draw = ImageDraw.Draw(image)
+
+                # Draw each detection
+                for detection in yolo_detections:
+                    bbox = detection['bbox']
+                    confidence = detection['confidence']
+                    class_name = detection['class']
+
+                    # Draw rectangle (convert coordinates to integers)
+                    draw.rectangle(
+                        [(int(bbox[0]), int(bbox[1])), (int(bbox[2]), int(bbox[3]))],
+                        outline='red',
+                        width=3
+                    )
+
+                    # Draw label with background
+                    label = f"{class_name} {confidence:.2f}"
+                    text_position = (int(bbox[0]), int(bbox[1]) - 15)
+                    text_bbox = draw.textbbox(text_position, label)
+                    draw.rectangle(text_bbox, fill='red')
+                    draw.text(text_position, label, fill='white')
+
+                # Save to bytes buffer
+                output_buffer = io.BytesIO()
+                image.save(output_buffer, format='JPEG')  # Or PNG, depending on your needs
+                processed_image_bytes = output_buffer.getvalue()
+            except Exception as e:
+                current_app.logger.error(f"Error drawing boxes: {e}")
+                # Return original image if drawing fails
+                processed_image_bytes = image_bytes
+
             processed_filename = "processed_" + unique_filename
             processed_image_path = save_image(processed_image_bytes, Config.PROCESSED_FOLDER, processed_filename)
         # Always save as processed image
@@ -99,7 +158,7 @@ def predict():
 
     processing_time = time.time() - start_time
 
-    # Database interaction using psycopg2
+    # Database interaction using psycopg2 connection pool
     conn = None  # Initialize connection
     try:
         conn = get_db_connection()
@@ -128,8 +187,7 @@ def predict():
 
     finally:
         if conn:  # Ensure connection is closed even if errors occur
-            cur.close()
-            close_db_connection(conn)
+            close_db_connection(conn)  # Use the close_db_connection function
 
     response_data = {
         'id': result_id,
@@ -200,8 +258,7 @@ def get_result(image_id):
 
     finally:
         if conn:
-            cur.close()
-            close_db_connection(conn)
+            close_db_connection(conn)  # Use the close_db_connection function
 
 @bp.route('/get_image/<int:image_id>')
 def get_image(image_id):
@@ -233,5 +290,9 @@ def get_image(image_id):
 
     finally:
         if conn:
-            cur.close()
             close_db_connection(conn)
+
+# Health check route
+@bp.route('/health')
+def health_check():
+    return jsonify({"status": "ok"}), 200

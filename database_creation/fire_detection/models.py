@@ -1,18 +1,19 @@
 from datetime import datetime
-from app import db
 import json  # Import the json module
 
 
-class ImageResult(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    original_filename = db.Column(db.String(255))
-    image_path = db.Column(db.String(255))
-    processed_image_path = db.Column(db.String(255))
-    yolo_detections = db.Column(db.Text)  # Use Text for JSON
-    cnn_probability = db.Column(db.Float)
-    processing_time = db.Column(db.Float)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-    model_type = db.Column(db.String(50))  # 'cnn' or 'yolo'
+class ImageResult: # Not a db.Model anymore
+    def __init__(self, id, original_filename, image_path, processed_image_path, yolo_detections, cnn_probability, processing_time, timestamp, model_type):
+        self.id = id
+        self.original_filename = original_filename
+        self.image_path = image_path
+        self.processed_image_path = processed_image_path
+        self.yolo_detections = yolo_detections
+        self.cnn_probability = cnn_probability
+        self.processing_time = processing_time
+        self.timestamp = timestamp
+        self.model_type = model_type
+
 
     def __repr__(self):
         return f'<ImageResult {self.id}>'

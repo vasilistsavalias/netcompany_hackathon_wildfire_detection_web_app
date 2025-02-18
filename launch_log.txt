@@ -1,3 +1,0 @@
-2025-02-17 23:09:51 - INFO - Initializing Backend...
-2025-02-17 23:09:51 - INFO - Attempting to activate: 'C:\Users\vtsav\Documents\1.programming_mine\GithubRepos\netcompany_hackathon_wildfire_detection_web_app\machine_learning\.venv\Scripts\activate.ps1'
-2025-02-17 23:09:51 - INFO - Backend started (PID: 15748).

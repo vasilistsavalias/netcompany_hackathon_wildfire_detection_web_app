@@ -1,86 +1,103 @@
-
-
+# Remove the version tag as it's now obsolete in modern Docker Compose
 services:
-  frontend:
-    build:
-      context: ./front_end
-      dockerfile: frontend.dockerfile
-    restart: always
-    ports:
-      - "80:80"
-    configs:
-      - source: nginx_config
-        target: /etc/nginx/conf.d/default.conf
-    networks:
-      - app-network
-    depends_on:
-      backend:
-        condition: service_healthy
-
+  # Backend service configuration - handles our Flask application and ML model
   backend:
-    build:
-      context: ./machine_learning
-      dockerfile: backend.dockerfile
-    restart: always
-    secrets:
-      - db_password
-      - flask_secret_key  
-    configs:
-      - source: backend_config
-        target: /app/config.yml
+    build: ./machine_learning  # Points to the directory containing our Dockerfile
+    ports:
+      # Bind to localhost only for security
+      # Format is "host_port:container_port"
+      - "127.0.0.1:8080:8080"
+    
     environment:
-      FLASK_ENV: production
-      DATABASE_URL: postgresql://wildfire_user:1234@db:5432/wildfire_db 
-      SECRET_KEY: 3aed0facd10b74d55d8d02987062a1f50c9f3691a1a77b3b 
-    networks:
-      - app-network
+      # Environment variables for our application
+      DATABASE_URL: ${DATABASE_URL}  # Database connection string
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY}  # Secret key for Flask sessions
+      PYTHONUNBUFFERED: 1  # Ensures Python output isn't buffered, giving us immediate logs
+      FLASK_APP: run.py  # Tells Flask which file to run
+      FLASK_RUN_HOST: 0.0.0.0  # Allows connections from outside the container
+      FLASK_RUN_PORT: 8080  # Port our application listens on
+      TZ: UTC  # Set timezone to UTC for consistent timestamps
+    
+    # Ensures database is healthy before starting the backend
     depends_on:
       db:
         condition: service_healthy
+    
+    # Health check configuration to monitor our application
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 5s
-      retries: 5
-      start_period: 15s
-      timeout: 5s
+      interval: 30s  # Check every 30 seconds
+      timeout: 10s   # Wait up to 10 seconds for response
+      retries: 3     # Try 3 times before marking unhealthy
+      start_period: 60s  # Give 60s for initial startup (model loading)
+    
+    # Resource limits to prevent memory issues with ML model
+    deploy:
+      resources:
+        limits:
+          memory: 2G    # Allow up to 2GB memory for ML model
+          cpus: '1.0'   # Allow up to 1 full CPU core
+    
+    # Restart policy for reliability
+    restart: unless-stopped
+    
+    # Logging configuration to prevent disk space issues
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Run our application using gunicorn for production-grade serving
+    command: [
+      "gunicorn",
+      "--bind", "0.0.0.0:8080",
+      "--workers", "1",
+      "--timeout", "120",
+      "--worker-class", "gthread",
+      "--threads", "4",
+      "run:app"
+    ]
 
+  # Database service configuration
   db:
-    build:
-      context: ./machine_learning
-      dockerfile: database.dockerfile 
-    image: postgres:alpine 
-    restart: always
-    secrets:
-      - db_password
+    build: ./database # Changed
+    #image: postgres:alpine # Use this if you DONT have init.sql
+    ports:
+      - "5432:5432"  # Optional: for external access
     environment:
-      POSTGRES_USER: wildfire_user 
-      POSTGRES_DB: wildfire_db 
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+      POSTGRES_USER: ${POSTGRES_USER}  # Use environment variable
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # Use environment variable
+      POSTGRES_DB: ${POSTGRES_DB}  # Use environment variable
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-    networks:
-      - app-network
+      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U wildfire_user -d wildfire_db"] 
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-secrets:
-  db_password:
-    file: ./netcompany_hackathon_wildfire_detection_web_app/db_password.txt
-  flask_secret_key:  
-    file: ./netcompany_hackathon_wildfire_detection_web_app/flask_secret_key.txt  
 
-configs:
-  nginx_config:
-    file: ./nginx.conf
-  backend_config:
-    file: ./backend-config.yaml
+        
+  frontend:  # Add the frontend service
+    build: ./front_end
+    ports:
+      - "80:80"  # Expose port 80 (or a different port if you prefer)
+    depends_on:
+      - backend # Optional
+    restart: unless-stopped
 
+# Define named volumes for persistent data
 volumes:
-  postgres-data:
-
-networks:
-  app-network:
-    driver: bridge
+  db_data:  # This volume persists PostgreSQL data between container restarts

@@ -1,0 +1,34 @@
+# Ignore virtual environment
+.venv/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore test files and directories (if you have any)
+tests/
+test_*.py
+
+# Ignore data files (VERY IMPORTANT - if applicable)
+data/
+*.csv
+*.h5
+*.jpg
+*.png
+*.jpeg
+
+
+
+# Ignore git files
+.git/
+
+# Ignore any other large files or directories you don't need in the container
+# Add any other large files that are not needed.
+
+# Docker related files
+database.dockerfile
+backend.dockerfile
+
+# Powershell script
+*.ps1
