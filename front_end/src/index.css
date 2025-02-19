@@ -12,6 +12,7 @@
 button:hover {
   background-color: #700000;
   color: white;
+  cursor: pointer;
 }
 
 .loader {
