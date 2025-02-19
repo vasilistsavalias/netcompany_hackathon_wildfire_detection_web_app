@@ -1,4 +1,0 @@
-1. docker compose -f 'docker-compose.yml' up -d --build
-2.docker-compose up --build
-3.docker-compose down 
-4.docker-compose up

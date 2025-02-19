@@ -5,15 +5,6 @@ import logo from "../assets/FD-removebg.png";
 import Uploader from "./Uploader";
 import Results from "./Results";
 import axios from "axios";
-import Spinner from "./Spinner";
-
-function ContentPlaceholder({ children }) {
-  return (
-    <div className="flex flex-col space-x-4 py-4 justify-center bg-white w-full md:w-[70%] h-full md:h-[65%] container drop-shadow-xl">
-      {children}
-    </div>
-  );
-}
 
 function App() {
   const [cnnResults, setCnnResults] = useState(null);
@@ -80,27 +71,9 @@ function App() {
         />
         <div className="absolute w-full h-full flex flex-col justify-center items-center">
           <div className="absolute h-full w-full bg-white opacity-20 p-8 rounded-lg" />
-          {showResults ? (
-            <ContentPlaceholder>
-              <button
-                onClick={handleGoBack}
-                className="absolute top-4 left-4 bg-black text-white transition-colors py-2 px-4 rounded"
-              >
-                Back
-              </button>
-              {cnnResults && <Results results={cnnResults} />}
-              {yoloResults && <Results results={yoloResults} />}
-            </ContentPlaceholder>
-          ) : loading ? (
-            <ContentPlaceholder>
-              <Spinner />
-            </ContentPlaceholder>
-          ) : error ? (
-            <ContentPlaceholder>
-              <p className="error">{error}</p>
-            </ContentPlaceholder>
-          ) : (
-            <ContentPlaceholder>
+
+          {!showResults ? (
+            <div className="flex flex-col space-x-4 py-4 justify-center bg-white w-full md:w-[70%] h-full md:h-[65%] container drop-shadow-xl">
               <div className="flex justify-center items-center space-x-2">
                 <img className="w-20" src={logo} alt="logo" />
                 <h1 className="text-center text-xl font-bold">
@@ -125,8 +98,21 @@ function App() {
                   modelType="yolo"
                 />
               </div>
-            </ContentPlaceholder>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={handleGoBack}
+                className="absolute top-4 left-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+              >
+                Back
+              </button>
+              {cnnResults && <Results results={cnnResults} />}
+              {yoloResults && <Results results={yoloResults} />}
+            </>
           )}
+          {loading && <p>Processing...</p>}
+          {error && <p className="error">{error}</p>}
         </div>
       </div>
     </>
